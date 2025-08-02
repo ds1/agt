@@ -402,6 +402,333 @@
     <script data-goatcounter="https://agt.goatcounter.com/count"
             async src="//gc.zgo.at/count.js"></script>
 
+    <!-- Event tracking script -->
+    <script>
+    // Wait for DOM to be ready
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // Helper function to safely track events
+        function trackEvent(eventName, eventData = {}) {
+            if (window.goatcounter && window.goatcounter.count) {
+                goatcounter.count({
+                    path: eventName,
+                    event: true,
+                    ...eventData
+                });
+            }
+        }
+
+        // 1. Track all CTA button clicks (Register/Get Domain buttons)
+        document.querySelectorAll('a[href*="freename.io/discover/agt"]').forEach(function(link) {
+            link.addEventListener('click', function() {
+                // Get button text to identify which CTA was clicked
+                const buttonText = this.textContent.trim();
+                trackEvent('cta-click', {
+                    title: buttonText
+                });
+            });
+        });
+
+        // 2. Track navigation menu clicks
+        document.querySelectorAll('nav a[href^="#"]').forEach(function(link) {
+            link.addEventListener('click', function() {
+                const section = this.getAttribute('href').replace('#', '');
+                trackEvent('nav-click', {
+                    title: 'Navigation: ' + section
+                });
+            });
+        });
+
+        // 3. Track mobile menu interactions
+        const hamburger = document.getElementById('hamburger');
+        if (hamburger) {
+            hamburger.addEventListener('click', function() {
+                trackEvent('mobile-menu-toggle');
+            });
+        }
+
+        // 4. Track external link clicks
+        document.querySelectorAll('a[href^="http"]:not([href*="agtdomains.com"])').forEach(function(link) {
+            link.addEventListener('click', function() {
+                const destination = new URL(this.href).hostname;
+                trackEvent('external-link', {
+                    title: 'External: ' + destination
+                });
+            });
+        });
+
+        // 5. Track email link clicks
+        document.querySelectorAll('a[href^="mailto:"]').forEach(function(link) {
+            link.addEventListener('click', function() {
+                trackEvent('contact-email-click');
+            });
+        });
+
+        // 6. Track Twitter/X link clicks
+        document.querySelectorAll('a[href*="twitter.com"], a[href*="x.com"]').forEach(function(link) {
+            link.addEventListener('click', function() {
+                trackEvent('social-twitter-click');
+            });
+        });
+
+        // 7. Track FAQ interactions
+        let faqStartTime = {};
+        document.querySelectorAll('#faq .card').forEach(function(card, index) {
+            // Track when someone hovers over FAQ (shows interest)
+            card.addEventListener('mouseenter', function() {
+                faqStartTime[index] = Date.now();
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                if (faqStartTime[index]) {
+                    const timeSpent = Date.now() - faqStartTime[index];
+                    // Only track if they spent more than 2 seconds reading
+                    if (timeSpent > 2000) {
+                        const question = this.querySelector('h3').textContent.trim();
+                        trackEvent('faq-read', {
+                            title: 'FAQ: ' + question
+                        });
+                    }
+                    delete faqStartTime[index];
+                }
+            });
+        });
+
+        // 8. Track scroll depth
+        let scrollTracked = {
+            25: false,
+            50: false,
+            75: false,
+            100: false
+        };
+
+        function trackScrollDepth() {
+            const windowHeight = window.innerHeight;
+            const documentHeight = document.documentElement.scrollHeight;
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            const scrollPercent = (scrollTop + windowHeight) / documentHeight * 100;
+
+            // Track 25%, 50%, 75%, and 100% scroll points
+            Object.keys(scrollTracked).forEach(function(depth) {
+                if (scrollPercent >= parseInt(depth) && !scrollTracked[depth]) {
+                    scrollTracked[depth] = true;
+                    trackEvent('scroll-depth', {
+                        title: 'Scrolled ' + depth + '%'
+                    });
+                }
+            });
+        }
+
+        // Debounce scroll tracking
+        let scrollTimeout;
+        window.addEventListener('scroll', function() {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(trackScrollDepth, 100);
+        });
+
+        // 9. Track time on page (engagement)
+        let startTime = Date.now();
+        let lastActivity = Date.now();
+        let isActive = true;
+
+        // Track when user is active
+        ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(function(event) {
+            document.addEventListener(event, function() {
+                lastActivity = Date.now();
+                if (!isActive) {
+                    isActive = true;
+                    startTime = Date.now();
+                }
+            }, true);
+        });
+
+        // Check for inactivity every 30 seconds
+        setInterval(function() {
+            if (Date.now() - lastActivity > 30000) {
+                isActive = false;
+            }
+        }, 30000);
+
+        // Track engagement time when user leaves
+        window.addEventListener('beforeunload', function() {
+            if (isActive) {
+                const timeSpent = Math.round((Date.now() - startTime) / 1000);
+                if (timeSpent > 10) { // Only track if more than 10 seconds
+                    let engagement = 'low';
+                    if (timeSpent > 180) engagement = 'high';
+                    else if (timeSpent > 60) engagement = 'medium';
+                    
+                    trackEvent('engagement-time', {
+                        title: engagement + ' (' + timeSpent + 's)'
+                    });
+                }
+            }
+        });
+
+        // 10. Track specific section views (when visible)
+        const observerOptions = {
+            threshold: 0.5 // Trigger when 50% visible
+        };
+
+        const sectionObserver = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    const sectionId = entry.target.getAttribute('id');
+                    if (sectionId) {
+                        trackEvent('section-view', {
+                            title: 'Viewed: ' + sectionId
+                        });
+                        // Only track once per section
+                        sectionObserver.unobserve(entry.target);
+                    }
+                }
+            });
+        }, observerOptions);
+
+        // Observe main sections
+        ['why-agt', 'use-cases', 'how-it-works', 'faq', 'contact'].forEach(function(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (section) {
+                sectionObserver.observe(section);
+            }
+        });
+
+        // 11. Track copy events (if someone copies your domain examples)
+        document.addEventListener('copy', function(e) {
+            const selection = window.getSelection().toString();
+            if (selection.includes('.agt')) {
+                trackEvent('content-copied', {
+                    title: 'Copied .agt content'
+                });
+            }
+        });
+
+        // 12. Track blockchain logo interactions (which chains interest users)
+        document.querySelectorAll('.blockchain-network').forEach(function(network) {
+            network.addEventListener('click', function() {
+                const blockchain = this.getAttribute('data-blockchain') || 'unknown';
+                trackEvent('blockchain-interest', {
+                    title: 'Clicked: ' + blockchain
+                });
+            });
+        });
+
+        // ===== LLM/BOT DETECTION AND TRACKING =====
+        
+        // List of known LLM/AI bot user agents
+        const aiBotsPattern = /bot|crawler|spider|crawling|gptbot|chatgpt|claude-web|perplexitybot|you\.com|duckduckbot|bingbot|googlebot|facebookexternalhit|facebookbot|meta-externalagent|ccbot|semrushbot|ahrefsbot|bytespider|petalbot|ia_archiver|seznambot|yandexbot|baiduspider|duckassistbot|anthropic|openai|cohere|you-bot|diffbot|linkedinbot|whatsapp|telegram|discord|slack/i;
+        
+        // Specific LLM/AI services
+        const specificAIBots = {
+            'gptbot': 'OpenAI GPTBot',
+            'chatgpt-user': 'ChatGPT Browser',
+            'claude-web': 'Claude Browser', 
+            'perplexitybot': 'Perplexity AI',
+            'you.com': 'You.com AI',
+            'ccbot': 'Common Crawl (LLM Training)',
+            'ia_archiver': 'Internet Archive',
+            'anthropic': 'Anthropic AI',
+            'facebookbot': 'Meta/Facebook AI',
+            'duckassistbot': 'DuckDuckGo AI'
+        };
+        
+        // Get user agent
+        const userAgent = navigator.userAgent.toLowerCase();
+        
+        // Check if current visitor is a bot
+        const isBot = aiBotsPattern.test(userAgent);
+        
+        // Track bot visit
+        if (isBot) {
+            // Identify specific bot
+            let botName = 'unknown-bot';
+            for (const [key, name] of Object.entries(specificAIBots)) {
+                if (userAgent.includes(key)) {
+                    botName = name;
+                    break;
+                }
+            }
+            
+            // Track as event
+            trackEvent('bot-visit', {
+                title: 'Bot: ' + botName
+            });
+            
+            // Also track specific AI bot visits
+            if (botName !== 'unknown-bot') {
+                trackEvent('ai-bot-visit', {
+                    title: 'AI Bot: ' + botName
+                });
+            }
+            
+            // Log to console for debugging
+            console.log('🤖 Bot detected:', userAgent);
+            console.log('Bot identification:', botName);
+        }
+        
+        // Track if page was likely loaded via AI chat (heuristic detection)
+        const referrer = document.referrer;
+        const aiPlatforms = {
+            'chat.openai.com': 'ChatGPT',
+            'claude.ai': 'Claude',
+            'perplexity.ai': 'Perplexity',
+            'you.com': 'You.com',
+            'bing.com/chat': 'Bing Chat',
+            'bard.google.com': 'Google Bard',
+            'poe.com': 'Poe'
+        };
+        
+        // Check if referred from AI platform
+        for (const [domain, platform] of Object.entries(aiPlatforms)) {
+            if (referrer.includes(domain)) {
+                trackEvent('ai-platform-referral', {
+                    title: 'Referred from: ' + platform
+                });
+                break;
+            }
+        }
+        
+        // Advanced: Detect potential LLM-like behavior patterns
+        let clickCount = 0;
+        let clickTimes = [];
+        let suspiciouslyFast = false;
+        
+        document.addEventListener('click', function() {
+            clickCount++;
+            clickTimes.push(Date.now());
+            
+            // Check for impossibly fast navigation (bot behavior)
+            if (clickTimes.length > 1) {
+                const timeDiff = clickTimes[clickTimes.length - 1] - clickTimes[clickTimes.length - 2];
+                if (timeDiff < 100) { // Less than 100ms between clicks
+                    suspiciouslyFast = true;
+                }
+            }
+        });
+        
+        // Track suspicious patterns on page unload
+        window.addEventListener('beforeunload', function() {
+            if (suspiciouslyFast) {
+                trackEvent('bot-behavior-detected', {
+                    title: 'Suspicious bot-like behavior'
+                });
+            }
+        });
+
+    });
+
+    // Optional: Custom event function you can call manually
+    window.trackCustomEvent = function(eventName, eventTitle) {
+        if (window.goatcounter && window.goatcounter.count) {
+            goatcounter.count({
+                path: eventName,
+                event: true,
+                title: eventTitle || eventName
+            });
+        }
+    };
+    </script>
+    
     <!-- Canonical URL -->
     <link rel="canonical" href="https://agtdomains.com/">
     
